@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sinistra 3D - Reconstrucción 3D | Etapa 3</title>
+    <meta
+      name="description"
+      content="Reconstrucción tridimensional forense a escala real de la escena delimitada, con mediciones métricas y exportación."
+    />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Three.js desde CDN (jsDelivr) -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+          "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js"
+        }
+      }
+    </script>
+    <!-- Operaciones booleanas de polígonos (unión, diferencia) -->
+    <script src="https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.min.js"></script>
+
+    <!-- Estilos modulares -->
+    <link rel="stylesheet" href="css/scene3d.css" />
+  </head>
+  <body>
+    <div class="app-layout">
+      <!-- 1. Visor 3D -->
+      <main class="viewport-wrap" aria-label="Visor de reconstrucción 3D">
+        <div id="viewport"></div>
+        <div id="labelLayer"></div>
+
+        <div class="view-badge glass" id="viewBadge">Vista isométrica</div>
+        <div class="tool-banner glass" id="toolBanner"></div>
+        <div
+          id="simCollisionStatus"
+          class="collision-hud-banner glass"
+          style="display: none"
+        >
+          <span id="simCollisionText">💥 Colisión</span>
+        </div>
+
+        <div class="compass glass" title="Norte geográfico real">
+          <span class="compass-n">N</span>
+          <div class="compass-needle" id="compassNeedle"></div>
+        </div>
+
+        <div class="scale-bar glass" id="scaleBar">
+          <div
+            class="scale-bar-line"
+            id="scaleBarLine"
+            style="width: 100px"
+          ></div>
+          <span id="scaleBarText">10 m</span>
+        </div>
+
+        <div class="nav-hint glass">
+          Clic izq.: rotar · Clic der.: desplazar · Rueda: zoom
+        </div>
+
+        <div class="demo-banner glass" id="demoBanner">
+          Modo demostración: no se encontró una escena exportada. Genera una
+          desde la Etapa 2 con el botón «Convertir a 3D».
+        </div>
+
+        <div class="loading-overlay" id="loadingOverlay">
+          <div class="spinner"></div>
+          <div class="loading-title">Construyendo escena 3D</div>
+          <div class="loading-step" id="loadingStep">Cargando datos...</div>
+        </div>
+      </main>
+
+      <!-- 2. Panel lateral -->
+      <aside class="sidebar-panel" aria-label="Herramientas 3D">
+        <div class="panel-header">
+          <div class="brand-group">
+            <div class="brand-icon">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+                ></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+            </div>
+            <div>
+              <h1 class="brand-title">Sinistra 3D</h1>
+              <div class="brand-subtitle">Etapa 3: Reconstrucción 3D</div>
+            </div>
+          </div>
+          <a
+            href="scene.html"
+            class="btn-back"
+            title="Volver a la delimitación 2D sin perder el trabajo"
+            >← Volver a 2D</a
+          >
+        </div>
+
+        <!-- Parámetros -->
+        <div class="card">
+          <span class="section-title">Parámetros de la Escena</span>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">Dimensión</span
+              ><span class="meta-val" id="mDim">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Zonas modeladas</span
+              ><span class="meta-val" id="mZones">—</span>
+            </div>
+            <div class="meta-item wide">
+              <span class="meta-label">Centro (lat, lng)</span
+              ><span class="meta-val" id="mCenter">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Orientación</span
+              ><span class="meta-val" id="mBearing">—</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Precisión de imagen</span
+              ><span class="meta-val" id="mMpp">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vistas -->
+        <div class="card">
+          <span class="section-title">Vistas</span>
+          <div class="btn-grid three">
+            <button class="btn active" id="vIso" data-view="iso">
+              🧊 Isométrica
+            </button>
+            <button class="btn" id="vTop" data-view="top">🔝 Planta</button>
+            <button class="btn" id="vReset" data-view="reset">
+              ⟲ Restablecer
+            </button>
+            <button class="btn" id="vPed" data-view="ped">🚶 Peatón</button>
+            <button class="btn" id="vDrv" data-view="drv">🚗 Conductor</button>
+          </div>
+          <div class="hint">
+            En Peatón y Conductor, haz clic en el suelo para ubicar la cámara.
+          </div>
+        </div>
+
+        <!-- Herramientas -->
+        <div class="card">
+          <span class="section-title">Herramientas forenses</span>
+          <div class="btn-grid three">
+            <button class="btn active" id="tSelect" data-tool="select">
+              Inspeccionar
+            </button>
+            <button class="btn" id="tDist" data-tool="distance">
+              Distancia
+            </button>
+            <button class="btn" id="tHeight" data-tool="height">Altura</button>
+          </div>
+          <button class="btn" id="btnClearMeasures">Limpiar mediciones</button>
+          <div class="hint" id="toolHint">
+            Haz clic en una zona para ver su información.
+          </div>
+        </div>
+
+        <!-- Inspector -->
+        <div class="card" id="inspectorCard">
+          <span class="section-title">Inspector de elemento</span>
+          <div class="insp-empty" id="inspEmpty">
+            Selecciona un elemento en la escena.
+          </div>
+          <div
+            id="inspBody"
+            style="display: none; flex-direction: column; gap: 8px"
+          >
+            <div class="form-row">
+              <span class="form-label">Nombre</span
+              ><strong id="iName" style="font-size: 13px">—</strong>
+            </div>
+            <div class="insp-grid">
+              <div class="form-row">
+                <span class="form-label">Tipo</span
+                ><span class="meta-val" id="iType">—</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Origen</span
+                ><span class="meta-val" id="iOrigin">—</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Elevación (m)</span>
+                <input
+                  type="number"
+                  id="iElev"
+                  class="form-input"
+                  step="0.05"
+                  min="0"
+                  max="60"
+                />
+              </div>
+              <div class="form-row">
+                <span class="form-label">Perímetro</span
+                ><span class="meta-val" id="iPerim">—</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Área corregida</span
+                ><span class="meta-val" id="iAreaC">—</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Área original</span
+                ><span class="meta-val" id="iAreaO">—</span>
+              </div>
+            </div>
+            <div class="form-row">
+              <span class="form-label">Correcciones aplicadas</span
+              ><span class="hint" id="iCorr">—</span>
+            </div>
+            <div class="form-row">
+              <span class="form-label">Notas forenses</span>
+              <div class="notes-box" id="iNotes">—</div>
+            </div>
+          </div>
+
+          <!-- Inspector específico para Objetos y Vehículos 3D (Etapa 4) -->
+          <div
+            id="inspObjBody"
+            style="display: none; flex-direction: column; gap: 8px"
+          >
+            <div class="form-row">
+              <span class="form-label">Elemento</span>
+              <strong id="iObjName" style="font-size: 13px">—</strong>
+            </div>
+            <div class="insp-grid">
+              <div class="form-row">
+                <span class="form-label">Categoría</span>
+                <span class="meta-val" id="iObjCat">—</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Rol Siniestro</span>
+                <span class="meta-val" id="iObjRole">—</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Cota de base</span>
+                <span class="meta-val" id="iObjElev">+0.00 m</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Rotación</span>
+                <span class="meta-val" id="iObjRot">0°</span>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Velocidad</span>
+                <div style="display: flex; align-items: center; gap: 4px">
+                  <input
+                    type="number"
+                    id="iObjSpeed"
+                    class="form-input"
+                    min="0"
+                    max="250"
+                    step="5"
+                    style="width: 75px; text-align: right"
+                    placeholder="0"
+                  />
+                  <span
+                    style="font-size: 11px; color: var(--text-muted, #94a3b8)"
+                    >km/h</span
+                  >
+                </div>
+              </div>
+              <div class="form-row">
+                <span class="form-label">Trayectoria / Tiempo</span>
+                <span class="meta-val" id="iObjKinematics">—</span>
+              </div>
+              <div
+                class="form-row"
+                id="rowObjDeviationAngle"
+                style="display: none"
+              >
+                <span class="form-label">Desvío Post-Impacto (°)</span>
+                <input
+                  type="number"
+                  id="iObjDeviationAngle"
+                  class="form-input"
+                  step="1"
+                  min="-180"
+                  max="180"
+                  style="width: 85px"
+                  placeholder="0°"
+                />
+              </div>
+              <div
+                class="form-row"
+                id="rowObjVehicleRestDist"
+                style="display: none"
+              >
+                <span class="form-label" title="Distancia final de detención del vehículo o motocicleta tras el impacto">Reposo Moto/Veh (m)</span>
+                <input
+                  type="number"
+                  id="iObjVehicleRestDist"
+                  class="form-input"
+                  min="0.5"
+                  max="60"
+                  step="0.5"
+                  value="5.0"
+                  style="width: 85px"
+                  placeholder="5.0 m"
+                />
+              </div>
+
+              <!-- Ángulo de Proyección del Conductor (Motocicleta) -->
+              <div
+                class="form-row"
+                id="rowObjRiderConfig"
+                style="display: none"
+              >
+                <span
+                  class="form-label"
+                  title="Ángulo vertical de eyección del conductor al chocar"
+                  >Proy. Conductor (°)</span
+                >
+                <input
+                  type="number"
+                  id="iObjRiderAngle"
+                  class="form-input"
+                  min="0"
+                  max="60"
+                  step="1"
+                  value="15"
+                  style="width: 85px"
+                  placeholder="15°"
+                  title="Ángulo de proyección vertical del conductor al impactar"
+                />
+              </div>
+
+              <!-- Distancia de Reposo Final del Conductor -->
+              <div
+                class="form-row"
+                id="rowObjRiderDist"
+                style="display: none"
+              >
+                <span
+                  class="form-label"
+                  title="Distancia en metros desde el punto de impacto donde queda el conductor sobre la vía"
+                  >Reposo Conductor (m)</span
+                >
+                <input
+                  type="number"
+                  id="iObjRiderDist"
+                  class="form-input"
+                  min="0.5"
+                  max="60"
+                  step="0.5"
+                  value="6.0"
+                  style="width: 85px"
+                  placeholder="6.0 m"
+                  title="Distancia final de detención del cuerpo tras el impacto (metros)"
+                />
+              </div>
+            </div>
+            <div class="form-row">
+              <span class="form-label">Notas / Evidencia</span>
+              <div class="notes-box" id="iObjNotes">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Control de Simulación Forense (Panel Lateral) -->
+        <div class="card" id="cardSimControls">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 8px;
+            "
+          >
+            <span class="section-title" style="margin: 0"
+              >🎬 Simulación Cinemática</span
+            >
+            <span
+              id="simCurrentTime"
+              style="
+                font-size: 11px;
+                font-family: monospace;
+                color: var(--accent);
+                font-weight: 700;
+              "
+              >0.000 s</span
+            >
+          </div>
+
+          <!-- Badge indicador de grabación de vídeo (REC) -->
+          <div
+            id="recStatusBadge"
+            class="rec-status-badge"
+            style="display: none; margin-bottom: 8px"
+          >
+            <span class="rec-dot"></span>
+            <strong style="color: #ef4444; font-size: 11px">REC</strong>
+            <span
+              id="recTimerText"
+              style="
+                font-family: monospace;
+                font-size: 11px;
+                color: var(--text-main);
+              "
+              >00:00 / 05:00</span
+            >
+          </div>
+
+          <!-- Botones de transporte principales y grabación -->
+          <div style="display: flex; gap: 4px; margin-bottom: 8px">
+            <button
+              type="button"
+              id="btnSimPlay"
+              class="btn primary"
+              style="
+                flex: 1.2;
+                height: 34px;
+                font-size: 11px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+                padding: 0 4px;
+              "
+              title="Solo Reproducir / Pausar (Espacio)"
+            >
+              <span id="simPlayIcon">▶️</span>
+              <span id="simPlayText">Reproducir</span>
+            </button>
+            <button
+              type="button"
+              id="btnSimRecordPlay"
+              class="btn btn-record"
+              style="
+                flex: 1.2;
+                height: 34px;
+                font-size: 11px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+                padding: 0 4px;
+              "
+              title="Reproducir y Grabar vídeo del canvas en formato MP4 (H.264)"
+            >
+              <span id="simRecordIcon">🔴</span>
+              <span id="simRecordText">Grabar & Play</span>
+            </button>
+            <button
+              type="button"
+              id="btnSimStopRecord"
+              class="btn btn-stop-record"
+              style="
+                display: none;
+                flex: 1.2;
+                height: 34px;
+                font-size: 11px;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+                padding: 0 4px;
+              "
+              title="Detener grabación y guardar vídeo inmediatamente"
+            >
+              <span>⏹️</span>
+              <span>Guardar</span>
+            </button>
+            <button
+              type="button"
+              id="btnSimReset"
+              class="btn"
+              style="flex: 0.8; height: 34px; font-size: 11px; padding: 0"
+              title="Reiniciar (t = 0.0s)"
+            >
+              ⏮️ Reset
+            </button>
+          </div>
+
+          <!-- Botones secundarios de transporte: reversa y frame a frame -->
+          <div style="display: flex; gap: 4px; margin-bottom: 8px">
+            <button
+              type="button"
+              id="btnSimStepBack"
+              class="btn"
+              style="flex: 1; height: 28px; font-size: 11px; padding: 2px"
+              title="Retroceder 1 frame (-0.05s / milésimas)"
+            >
+              ⏪ -Frame
+            </button>
+            <button
+              type="button"
+              id="btnSimReverse"
+              class="btn"
+              style="flex: 1; height: 28px; font-size: 11px; padding: 2px"
+              title="Reproducir en Reversa"
+            >
+              <span id="simRevIcon">◀️</span> Reversa
+            </button>
+            <button
+              type="button"
+              id="btnSimStepForward"
+              class="btn"
+              style="flex: 1; height: 28px; font-size: 11px; padding: 2px"
+              title="Avanzar 1 frame (+0.05s / milésimas)"
+            >
+              ⏩ +Frame
+            </button>
+          </div>
+
+          <!-- Línea de tiempo / Scrubber pericial -->
+          <div style="margin-bottom: 8px">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 10px;
+                color: var(--text-muted);
+                font-family: monospace;
+                margin-bottom: 3px;
+              "
+            >
+              <span>Tiempo de Escena</span>
+              <div style="display: flex; align-items: center; gap: 4px">
+                <span>Total:</span>
+                <span
+                  id="simTotalTime"
+                  style="
+                    cursor: pointer;
+                    color: var(--accent);
+                    font-weight: 700;
+                    text-decoration: underline dotted;
+                  "
+                  title="Clic para editar la duración total o cambiar entre Manual y Auto"
+                  >0.000 s</span
+                >
+                <button
+                  type="button"
+                  id="btnEditSimDuration"
+                  style="
+                    background: none;
+                    border: none;
+                    color: var(--accent);
+                    cursor: pointer;
+                    font-size: 11px;
+                    padding: 0 2px;
+                  "
+                  title="Editar duración de la escena (Manual / Auto)"
+                >
+                  ✏️
+                </button>
+              </div>
+            </div>
+            <input
+              type="range"
+              id="simTimeSlider"
+              class="sim-slider"
+              min="0"
+              max="100"
+              step="0.01"
+              value="0"
+              style="
+                width: 100%;
+                accent-color: var(--accent);
+                cursor: pointer;
+                height: 5px;
+              "
+              title="Línea de tiempo de la reconstrucción (Scrubber milimétrico)"
+            />
+          </div>
+
+          <!-- Multiplicadores de Velocidad de Reproducción -->
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 8px;
+            "
+          >
+            <span style="font-size: 10px; color: var(--text-muted)"
+              >Velocidad:</span
+            >
+            <div class="sim-speed-group">
+              <button type="button" class="sim-speed-btn" data-speed="0.25">
+                0.25×
+              </button>
+              <button type="button" class="sim-speed-btn" data-speed="0.5">
+                0.5×
+              </button>
+              <button type="button" class="sim-speed-btn active" data-speed="1">
+                1.0×
+              </button>
+              <button type="button" class="sim-speed-btn" data-speed="2">
+                2.0×
+              </button>
+            </div>
+          </div>
+
+          <!-- Badge de telemetría en vivo -->
+          <div
+            id="simLiveTelemetry"
+            class="sim-telemetry-badge"
+            style="display: none; justify-content: center; margin-bottom: 8px"
+          >
+            <span id="simTelemetryVehicle">🚗 Sedán</span>:
+            <strong id="simTelemetrySpeed">50 km/h</strong>
+          </div>
+
+          <div
+            style="
+              font-size: 10px;
+              color: var(--text-muted);
+              display: flex;
+              justify-content: space-between;
+            "
+          >
+            <span>Atajos: [Espacio] Play/Pausa</span>
+            <span>[← / →] Frame - / +</span>
+          </div>
+        </div>
+
+        <!-- Capas -->
+        <details class="card" open>
+          <summary><span class="section-title">Capas</span></summary>
+          <label class="toggle-row"
+            ><span
+              ><span class="dot" style="background: #2563eb"></span>Vehículos y
+              Objetos</span
+            ><input type="checkbox" id="lObjects" checked
+          /></label>
+          <label class="toggle-row"
+            ><span
+              ><span class="dot" style="background: #f97316"></span>Trayectorias
+              Forenses</span
+            ><input type="checkbox" id="lTrajectories" checked
+          /></label>
+          <label class="toggle-row"
+            ><span
+              ><span class="dot" style="background: #94a3b8"></span
+              >Calzadas</span
+            ><input type="checkbox" data-layer="calzada" checked
+          /></label>
+          <label class="toggle-row"
+            ><span
+              ><span class="dot" style="background: #00f0ff"></span
+              >Andenes</span
+            ><input type="checkbox" data-layer="anden" checked
+          /></label>
+          <label class="toggle-row"
+            ><span
+              ><span class="dot" style="background: #10b981"></span
+              >Separadores</span
+            ><input type="checkbox" data-layer="separador" checked
+          /></label>
+          <label class="toggle-row"
+            ><span
+              ><span class="dot" style="background: #a855f7"></span
+              >Edificaciones</span
+            ><input type="checkbox" data-layer="edificio" checked
+          /></label>
+          <label class="toggle-row"
+            ><span>Textura del mapa (piso)</span
+            ><input type="checkbox" id="lFloor" checked
+          /></label>
+          <label class="toggle-row"
+            ><span>Etiquetas</span><input type="checkbox" id="lLabels" checked
+          /></label>
+          <label class="toggle-row"
+            ><span><span class="dot" style="background: #f97316"></span>Etiquetas de Impacto (POI)</span><input type="checkbox" id="lPoiLabels" checked
+          /></label>
+          <label class="toggle-row"
+            ><span>Cuadrícula 1 m / 10 m</span
+            ><input type="checkbox" id="lGrid"
+          /></label>
+          <label class="toggle-row"
+            ><span>Modo alambre</span><input type="checkbox" id="lWire"
+          /></label>
+        </details>
+
+        <!-- Geometría -->
+        <details class="card">
+          <summary>
+            <span class="section-title">Geometría y correcciones</span>
+          </summary>
+          <div class="btn-grid">
+            <button class="btn active" id="gCorr">Corregida</button>
+            <button class="btn" id="gOrig">Original</button>
+          </div>
+          <div class="hint">
+            La geometría corregida cierra huecos y elimina superposiciones entre
+            zonas vecinas. La original conserva exactamente lo trazado en 2D.
+          </div>
+          <div class="report-summary" id="reportSummary"></div>
+          <div class="report-list" id="reportList"></div>
+          <div class="hint">
+            Las zonas con cambio de área superior al 3 % se marcan en ámbar para
+            revisión manual.
+          </div>
+        </details>
+
+        <!-- Exportar -->
+        <div class="card">
+          <span class="section-title">Exportar</span>
+          <div class="btn-grid three">
+            <button class="btn primary" id="eng">📸 Imagen PNG</button>
+            <button class="btn primary" id="eglb">📦 Modelo .glb</button>
+            <button class="btn primary" id="ejson">🧾 Datos .json</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="toast-container">
+      <div id="toast" class="toast">
+        <span id="toastMsg">Notificación</span>
+      </div>
+    </div>
+
+    <!-- Módulos globales de catálogo y cinemática -->
+    <script src="js/objects_catalog.js"></script>
+    <script src="js/kinematics_engine.js"></script>
+
+    <!-- Lógica modular de escena 3D -->
+    <script type="module" src="js/scene3d.js"></script>
+  </body>
+</html>

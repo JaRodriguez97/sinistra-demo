@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      Sinistra 3D - Reconstrucción de Accidentes | Selección de Zona 2D
+    </title>
+
+    <!-- MapLibre GL JS v3.6.2 (Versión estable UMD autónoma sin dependencias externas) -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
+    />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Estilos de la etapa 1 -->
+    <link rel="stylesheet" href="css/index.css" />
+  </head>
+  <body>
+    <!-- Contenedor del mapa en pantalla completa -->
+    <div id="map"></div>
+
+    <!-- Brújula Forense Flotante Interactiva sobre el Mapa -->
+    <div
+      id="forensicCompassWidget"
+      class="forensic-compass-widget"
+      title="Brújula Forense: Clic al centro para restablecer al Norte (0°) | Usa los botones laterales o el control deslizante para girar"
+    >
+      <button
+        id="btnMapRotateLeft"
+        type="button"
+        class="compass-btn compass-btn-left"
+        title="Girar mapa hacia la izquierda (⟲ -10°)"
+      >
+        ⟲
+      </button>
+      <div
+        id="compassDial"
+        class="compass-dial"
+        role="button"
+        tabindex="0"
+        title="Clic para restablecer orientación al Norte (0°)"
+      >
+        <div class="compass-ring">
+          <span class="compass-cardinal cardinal-n">N</span>
+          <span class="compass-cardinal cardinal-e">E</span>
+          <span class="compass-cardinal cardinal-s">S</span>
+          <span class="compass-cardinal cardinal-w">O</span>
+          <div id="compassNeedle" class="compass-needle">
+            <div class="needle-north"></div>
+            <div class="needle-south"></div>
+            <div class="needle-pivot"></div>
+          </div>
+        </div>
+      </div>
+      <button
+        id="btnMapRotateRight"
+        type="button"
+        class="compass-btn compass-btn-right"
+        title="Girar mapa hacia la derecha (⟳ +10°)"
+      >
+        ⟳
+      </button>
+    </div>
+
+    <!-- Barra de coordenadas en tiempo real del cursor -->
+    <div id="cursorCoords" class="cursor-coordinates">
+      <span>Cursor: Mueve el ratón sobre el mapa</span>
+      <span id="compassHeading">Brújula: 0.0°</span>
+    </div>
+
+    <!-- Panel de control flotante -->
+    <aside
+      class="control-panel"
+      aria-label="Panel de Reconstrucción de Accidente"
+    >
+      <div class="panel-header">
+        <div class="brand-group">
+          <div class="brand-icon" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polygon
+                points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"
+              ></polygon>
+              <line x1="8" y1="2" x2="8" y2="18"></line>
+              <line x1="16" y1="6" x2="16" y2="22"></line>
+            </svg>
+          </div>
+          <div>
+            <h1 class="brand-title">Sinistra 3D</h1>
+            <div class="brand-subtitle">Reconstrucción Vial</div>
+          </div>
+        </div>
+        <span class="badge-stage">Etapa 1: Mapa 2D</span>
+      </div>
+
+      <!-- Indicador de estado de selección -->
+      <div id="statusBanner" class="status-banner empty">
+        <span class="status-dot"></span>
+        <span id="statusText"
+          >Haz clic en una intersección para delimitar la zona</span
+        >
+      </div>
+
+      <!-- Panel de coordenadas del epicentro -->
+      <div>
+        <div class="section-title-row">
+          <span class="section-title">Coordenadas del Epicentro</span>
+        </div>
+        <div class="coords-card">
+          <div class="coords-row">
+            <span class="coords-label">Latitud:</span>
+            <span id="latValue" class="coords-val empty">No seleccionada</span>
+          </div>
+          <div class="coords-row">
+            <span class="coords-label">Longitud:</span>
+            <span id="lngValue" class="coords-val empty">No seleccionada</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Selector del tamaño de la zona de trabajo (con 300m como máximo) -->
+      <div class="size-control">
+        <div class="section-title-row">
+          <span class="section-title">Tamaño de Zona de Trabajo</span>
+        </div>
+        <div
+          class="segmented-control"
+          role="radiogroup"
+          aria-label="Tamaño de la zona"
+        >
+          <button
+            type="button"
+            class="segment-btn"
+            data-size="50"
+            role="radio"
+            aria-checked="false"
+            title="50x50m: Esquinas e intersecciones compactas"
+          >
+            50m
+          </button>
+          <button
+            type="button"
+            class="segment-btn active"
+            data-size="100"
+            role="radio"
+            aria-checked="true"
+            title="100x100m: Cruces viales estándar y doble calzada"
+          >
+            100m
+          </button>
+          <button
+            type="button"
+            class="segment-btn"
+            data-size="200"
+            role="radio"
+            aria-checked="false"
+            title="200x200m: Glorietas y tramos múltiples"
+          >
+            200m
+          </button>
+          <button
+            type="button"
+            class="segment-btn"
+            data-size="300"
+            role="radio"
+            aria-checked="false"
+            title="300x300m: Corredor vial extenso"
+          >
+            300m
+          </button>
+        </div>
+        <div class="size-summary">
+          <span>Dimensión: <strong id="summaryDim">100 × 100 m</strong></span>
+          <span
+            >Área: <strong id="summaryArea">10,000 m² (1.0 ha)</strong></span
+          >
+        </div>
+      </div>
+
+      <!-- Selector de Capa Base (Google Maps / Satélite / Vectorial Métrico) -->
+      <div class="map-type-control">
+        <div class="section-title-row">
+          <span class="section-title">Capa Base del Mapa</span>
+          <span
+            class="badge-stage"
+            style="
+              background: rgba(16, 185, 129, 0.15);
+              color: #34d399;
+              border-color: rgba(16, 185, 129, 0.3);
+            "
+            >Escala Real</span
+          >
+        </div>
+        <div
+          class="style-selector"
+          role="radiogroup"
+          aria-label="Capa base del mapa"
+        >
+          <button
+            type="button"
+            class="segment-btn active"
+            data-map-style="google-streets"
+            role="radio"
+            aria-checked="true"
+            title="🗺️ Google Calles: trazado vial y manzanas limpias sin marcas ni pines comerciales (óptimo para recortar y segmentar)"
+          >
+            🗺️ Calles
+          </button>
+          <button
+            type="button"
+            class="segment-btn"
+            data-map-style="google-hybrid"
+            role="radio"
+            aria-checked="false"
+            title="🛰️ Google Híbrido: vista satelital aérea con vías para comparar y validar con la realidad"
+          >
+            🛰️ Híbrido
+          </button>
+        </div>
+      </div>
+
+      <!-- Orientación y Giro de Calles -->
+      <div class="rotation-control">
+        <div class="section-title-row">
+          <span class="section-title">Giro de Calles y Orientación</span>
+          <span id="rotationValue" class="rotation-badge">0.0° (Norte)</span>
+        </div>
+
+        <!-- Deslizador de rotación continuo e interactivo -->
+        <div class="rotation-slider-container">
+          <div class="slider-header">
+            <span class="slider-label">Acomodar ángulo de las calles:</span>
+            <span id="sliderAngleText" class="slider-val">0°</span>
+          </div>
+          <input
+            id="rotationRange"
+            type="range"
+            min="0"
+            max="360"
+            step="1"
+            value="0"
+            class="rotation-range-slider"
+            title="Desliza para girar el mapa y acomodar las calles completamente rectas"
+          />
+          <div class="slider-ticks">
+            <span>0° (N)</span>
+            <span>90° (E)</span>
+            <span>180° (S)</span>
+            <span>270° (O)</span>
+            <span>360°</span>
+          </div>
+        </div>
+
+        <!-- Botones de paso rápido y fino -->
+        <div class="rotation-actions">
+          <div class="rotation-steppers-grid">
+            <button
+              id="btnRotateStepFastLeft"
+              type="button"
+              class="btn-step"
+              title="Girar -15° (antihorario rápido)"
+            >
+              ⟲ -15°
+            </button>
+            <button
+              id="btnRotateLeft"
+              type="button"
+              class="btn-step"
+              title="Ajuste fino -2° (antihorario)"
+            >
+              ↺ -2°
+            </button>
+            <button
+              id="btnRotateReset"
+              type="button"
+              class="btn-step btn-step-reset"
+              title="Restablecer al Norte (0°)"
+            >
+              🧭 0° Norte
+            </button>
+            <button
+              id="btnRotateRight"
+              type="button"
+              class="btn-step"
+              title="Ajuste fino +2° (horario)"
+            >
+              ↻ +2°
+            </button>
+            <button
+              id="btnRotateStepFastRight"
+              type="button"
+              class="btn-step"
+              title="Girar +15° (horario rápido)"
+            >
+              ⟳ +15°
+            </button>
+          </div>
+          <div class="rotation-hint">
+            💡 Gira con el deslizador hasta que las vías queden derechitas y
+            horizontales antes de recortar.
+          </div>
+        </div>
+      </div>
+
+      <!-- Botones de Acción -->
+      <div class="actions-grid">
+        <button
+          id="btnCrop"
+          type="button"
+          class="btn btn-crop"
+          disabled
+          title="Recortar y capturar el área del cuadro con sus colores originales en un canvas"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M6 2v14a2 2 0 0 0 2 2h14"></path>
+            <path d="M18 22V8a2 2 0 0 0-2-2H2"></path>
+          </svg>
+          Recortar
+        </button>
+
+        <button
+          id="btnRecenter"
+          type="button"
+          class="btn btn-secondary"
+          disabled
+          title="Centrar el mapa y ajustar zoom vertical sobre el accidente"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          Re-centrar
+        </button>
+
+        <button
+          id="btnClear"
+          type="button"
+          class="btn btn-danger-outline"
+          disabled
+          title="Remover marcador y zona de trabajo"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path
+              d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+            ></path>
+          </svg>
+          Limpiar
+        </button>
+
+        <button
+          id="btnGoCali"
+          type="button"
+          class="btn btn-ghost-cali"
+          title="Mover la vista al centro de Santiago de Cali"
+        >
+          📍 Re-orientar vista en Cali, Colombia
+        </button>
+      </div>
+    </aside>
+
+    <!-- Modal para visualización e inspección del recorte 2D en canvas -->
+    <div
+      id="cropModalOverlay"
+      class="crop-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cropModalTitle"
+    >
+      <div class="crop-modal-card">
+        <div class="crop-modal-header">
+          <div class="crop-modal-title-group">
+            <div class="crop-modal-icon">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M6 2v14a2 2 0 0 0 2 2h14"></path>
+                <path d="M18 22V8a2 2 0 0 0-2-2H2"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 id="cropModalTitle" class="crop-modal-title">
+                Zona Recortada en Canvas
+              </h2>
+              <p class="crop-modal-subtitle">
+                Captura 2D con textura y color original del terreno
+              </p>
+            </div>
+          </div>
+          <button
+            id="btnCloseCropModal"
+            type="button"
+            class="btn-modal-close"
+            title="Cerrar modal (Esc)"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div class="crop-canvas-wrapper">
+          <canvas id="cropCanvas"></canvas>
+        </div>
+
+        <div class="crop-modal-details">
+          <div class="crop-detail-chip">
+            <span class="crop-detail-label">Dimensión:</span>
+            <strong id="cropModalDim" class="crop-detail-val"
+              >100 × 100 m</strong
+            >
+          </div>
+          <div class="crop-detail-chip">
+            <span class="crop-detail-label">Resolución:</span>
+            <strong id="cropModalRes" class="crop-detail-val"
+              >512 × 512 px</strong
+            >
+          </div>
+          <div class="crop-detail-chip">
+            <span class="crop-detail-label">Textura:</span>
+            <strong
+              id="cropModalTexture"
+              class="crop-detail-val"
+              style="color: #34d399"
+              >Google Calles (Limpio)</strong
+            >
+          </div>
+        </div>
+
+        <div class="crop-modal-actions">
+          <button
+            id="btnImplementCrop"
+            type="button"
+            class="btn btn-crop-implement"
+            title="Transferir textura al espacio de trabajo forense para delimitar andenes, calzadas y edificaciones"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Implementar en Canvas
+          </button>
+          <button
+            id="btnDownloadCrop"
+            type="button"
+            class="btn btn-crop-download"
+            title="Guardar archivo PNG en el disco"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Descargar PNG
+          </button>
+          <button
+            id="btnCloseCropSecondary"
+            type="button"
+            class="btn btn-secondary"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notificaciones emergentes (Toast) -->
+    <div class="toast-container">
+      <div id="toast" class="toast">
+        <span id="toastMessage">Notificación</span>
+      </div>
+    </div>
+
+    <!-- Capa de error si falla la inicialización gráfica -->
+    <div id="errorOverlay" class="error-overlay">
+      <div class="error-card">
+        <div class="error-title">Error al inicializar el mapa</div>
+        <p id="errorMessage" class="error-message">
+          No se pudo cargar el motor cartográfico MapLibre GL o la conexión a
+          los mosaicos falló.
+        </p>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          onclick="window.location.reload()"
+        >
+          Reintentar recarga
+        </button>
+      </div>
+    </div>
+
+    <!-- Scripts de la etapa 1 -->
+    <script src="js/index_storage.js"></script>
+    <script src="js/index.js"></script>
+  </body>
+</html>

@@ -1,0 +1,1257 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sinistra 3D - Espacio de Trabajo Forense | Delimitación 2D</title>
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Estilos de la etapa 2 -->
+    <link rel="stylesheet" href="css/scene.css" />
+  </head>
+  <body>
+    <div class="app-layout">
+      <!-- 1. Lienzo Interactivo 2D (Izquierda - 100% limpio y despejado) -->
+      <main class="canvas-viewport" aria-label="Lienzo de reconstrucción">
+        <!-- Escenario del Canvas 1:1 -->
+        <div class="canvas-stage" id="canvasStage">
+          <canvas id="mainCanvas"></canvas>
+
+          <!-- Barra flotante de Zoom y Encuadre -->
+          <div class="canvas-zoom-toolbar" aria-label="Controles de zoom">
+            <button
+              type="button"
+              class="zoom-btn"
+              id="btnZoomIn"
+              title="Acercar (+ o Rueda ↑)"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+            <span
+              class="zoom-badge"
+              id="zoomBadge"
+              title="Nivel de zoom actual (Clic para restablecer a 100%)"
+              >100%</span
+            >
+            <button
+              type="button"
+              class="zoom-btn"
+              id="btnZoomOut"
+              title="Alejar (- o Rueda ↓)"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="zoom-btn"
+              id="btnZoomReset"
+              title="Restablecer vista 100% y centrar (Tecla 0)"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+                ></path>
+                <path d="M3 3v5h5"></path>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Banner HUD superior de impacto / colisión (2D) -->
+          <div
+            id="simCollisionStatus"
+            class="collision-hud-banner"
+            style="display: none"
+          >
+            <span id="simCollisionText">💥 Colisión</span>
+          </div>
+
+
+          <!-- Indicador flotante sutil de navegación -->
+          <div class="canvas-nav-hint">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              style="color: var(--accent)"
+            >
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span>Rueda: Zoom | Clic Der. o Espacio+Arrastrar: Desplazar</span>
+          </div>
+        </div>
+      </main>
+
+      <!-- 2. Panel de Herramientas e Inspector (Derecha) -->
+      <aside class="sidebar-panel" aria-label="Herramientas de modelado">
+        <div class="panel-header">
+          <div class="brand-group">
+            <div class="brand-icon">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+            </div>
+            <div>
+              <h1 class="brand-title">Sinistra 3D</h1>
+              <div class="brand-subtitle">Etapa 2: Delimitación 2D</div>
+            </div>
+          </div>
+          <a
+            href="index.html"
+            class="btn-back-map"
+            title="Volver al mapa para re-orientar o recortar otra zona"
+          >
+            ← Mapa 2D
+          </a>
+        </div>
+
+        <!-- Ficha técnica métrica y telemetría en vivo -->
+        <div class="meta-card">
+          <span class="section-title">Parámetros de la Escena</span>
+          <div class="meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">Dimensión:</span>
+              <span id="metaDim" class="meta-val">100 × 100 m</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Resolución:</span>
+              <span id="metaRes" class="meta-val">893 × 893 px</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Escala métrica:</span>
+              <span id="metaMpp" class="meta-val">0.112 m / px</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Capa base:</span>
+              <span id="metaStyle" class="meta-val">Google Híbrido</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Cursor en vivo:</span>
+              <span id="metaCoords" class="meta-val">X: 0.0 m | Y: 0.0 m</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Zonas trazadas:</span>
+              <span id="metaZoneCount" class="meta-val">0 zonas</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botón de Auto-Detección Inteligente desde OpenStreetMap -->
+        <div class="autodetect-box">
+          <button
+            type="button"
+            id="btnAutoDetectOSM"
+            class="btn-autodetect-osm"
+            title="Escanear y delimitar automáticamente negocios, locales comerciales y estructuras reales desde OpenStreetMap"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+              <path d="M9 22v-4h6v4"></path>
+              <path d="M8 6h.01"></path>
+              <path d="M16 6h.01"></path>
+              <path d="M12 6h.01"></path>
+              <path d="M12 10h.01"></path>
+              <path d="M12 14h.01"></path>
+              <path d="M16 10h.01"></path>
+              <path d="M16 14h.01"></path>
+              <path d="M8 10h.01"></path>
+              <path d="M8 14h.01"></path>
+            </svg>
+            Auto-Detectar Negocios y Edificios (OSM)
+          </button>
+          <div class="autodetect-hint">
+            Extrae de inmediato los locales comerciales, negocios y
+            edificaciones con sus nombres reales.
+          </div>
+        </div>
+
+        <!-- Modos de Interacción y Trazado -->
+        <div class="tools-section">
+          <span class="section-title">Modo de Trazado / Selección</span>
+          <div class="mode-switch-grid">
+            <button
+              type="button"
+              class="mode-btn active"
+              data-mode="select"
+              title="Seleccionar zonas y arrastrar vértices para amoldar esquinas o curvas"
+            >
+              👆 Vértices / Mover
+            </button>
+            <button
+              type="button"
+              class="mode-btn"
+              data-mode="polygon"
+              title="Polígono libre: Clic punto a punto para cualquier calle curva o diagonal"
+            >
+              ✏️ Polígono Libre
+            </button>
+            <button
+              type="button"
+              class="mode-btn"
+              data-mode="wand"
+              title="Varita mágica: Haz clic en el lienzo y delimita automáticamente por contraste de color"
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                style="flex-shrink: 0"
+              >
+                <path d="m19 2 2 2-2 2-2-2Z"></path>
+                <path d="m5 16 12-12"></path>
+                <path d="m15 2 1 2 2 1-2 1-1 2-1-2-2-1 2-1Z"></path>
+                <path d="M2 19l2 2 4-4-2-2Z"></path>
+              </svg>
+              Varita Mágica
+            </button>
+            <button
+              type="button"
+              class="mode-btn"
+              data-mode="object"
+              title="Colocar vehículos, peatones, mobiliario, señales y evidencias viales"
+            >
+              🚗 Objetos / Vehículos
+            </button>
+            <button
+              type="button"
+              class="mode-btn"
+              data-mode="dimension"
+              id="btnModeDimension"
+              title="Acotar / Medir: Medición de distancias forenses, anchos de vía, triangulación y calibración métrica"
+            >
+              📐 Acotar / Medir
+            </button>
+          </div>
+
+          <!-- Opciones específicas de la Varita Mágica -->
+          <div
+            id="wandOptionsPanel"
+            class="wand-options-panel"
+            style="display: none"
+          >
+            <div class="wand-control-row">
+              <span class="wand-label">Tolerancia de color:</span>
+              <span id="wandTolVal" class="wand-val">±25</span>
+            </div>
+            <input
+              type="range"
+              id="inputWandTol"
+              class="wand-slider"
+              min="5"
+              max="65"
+              value="25"
+              step="1"
+            />
+            <div class="wand-tip">
+              💡 Clic en el asfalto, andén o tejado del lienzo para escanear su
+              contorno.
+            </div>
+          </div>
+
+          <!-- Opciones específicas del Modo Objetos -->
+          <div
+            id="objectsOptionsPanel"
+            class="objects-options-panel"
+            style="display: none"
+          >
+            <div class="obj-tabs-row" id="objCategoryTabs">
+              <button
+                type="button"
+                class="obj-tab-btn active"
+                data-objcat="vehiculo"
+              >
+                🚗 Autos
+              </button>
+              <button type="button" class="obj-tab-btn" data-objcat="persona">
+                🚶 Peatón
+              </button>
+              <button
+                type="button"
+                class="obj-tab-btn"
+                data-objcat="mobiliario"
+              >
+                🌳 Entorno
+              </button>
+              <button type="button" class="obj-tab-btn" data-objcat="senal">
+                🛑 Señales
+              </button>
+              <button type="button" class="obj-tab-btn" data-objcat="evidencia">
+                〰️ Frenado
+              </button>
+            </div>
+            <div class="obj-catalog-grid" id="objCatalogGrid">
+              <!-- Se puebla dinámicamente desde objects_catalog.js -->
+            </div>
+            <div class="obj-placement-hint" id="objPlacementHint">
+              💡 Haz clic en el plano para estampar el objeto seleccionado.
+              Arrástralo para moverlo y usa el aro exterior para rotarlo.
+            </div>
+          </div>
+
+          <!-- Opciones de Acotación de Distancias entre Elementos -->
+          <div
+            id="dimensionOptionsPanel"
+            class="dimension-options-panel"
+            style="display: none"
+          >
+            <div class="dimension-hint" id="dimensionHintText">
+              💡 Haz clic en dos cuerpos o puntos del plano para trazar la distancia entre ellos. Puedes hacer clic en la cota para asignarle o editarle su valor métrico exacto.
+            </div>
+
+            <div class="dimension-actions-row">
+              <button
+                type="button"
+                id="btnEditDimensionValue"
+                class="btn-dim-action"
+                title="Asignar o modificar la medida métrica de la distancia seleccionada"
+              >
+                ✏️ Asignar Medida
+              </button>
+              <button
+                type="button"
+                id="btnDeleteDimension"
+                class="btn-dim-action"
+                title="Eliminar la cota seleccionada (o tecla Supr)"
+              >
+                🗑️ Eliminar
+              </button>
+              <button
+                type="button"
+                id="btnClearDimensions"
+                class="btn-dim-action"
+                title="Eliminar todas las cotas"
+              >
+                Borrar Todas
+              </button>
+            </div>
+          </div>
+
+          <!-- Tip contextual de la herramienta activa -->
+          <div id="toolInstructionTip" class="tool-instruction-tip">
+            Selecciona una zona en el lienzo. Arrastra los puntos de sus
+            esquinas para acomodar cualquier curva. Clic en un punto y tecla
+            Supr lo elimina.
+          </div>
+
+          <!-- Categoría del elemento a trazar -->
+          <span class="section-title" style="margin-top: 10px"
+            >Categoría del Elemento</span
+          >
+          <div class="category-grid">
+            <button
+              type="button"
+              class="cat-btn active"
+              data-cat="anden"
+              title="Andén peatonal (elevación +15 cm)"
+            >
+              <span class="tool-color-dot" style="background: #00f0ff"></span>
+              🧱 Andén
+            </button>
+            <button
+              type="button"
+              class="cat-btn"
+              data-cat="separador"
+              title="Separador vial (elevación +20 cm)"
+            >
+              <span class="tool-color-dot" style="background: #10b981"></span>
+              🚧 Separador
+            </button>
+            <button
+              type="button"
+              class="cat-btn"
+              data-cat="calzada"
+              title="Calzada vehicular (nivel 0 cm)"
+            >
+              <span class="tool-color-dot" style="background: #64748b"></span>
+              🛣️ Calzada
+            </button>
+            <button
+              type="button"
+              class="cat-btn"
+              data-cat="edificio"
+              title="Edificación / Manzana (elevación +3.5 m)"
+            >
+              <span class="tool-color-dot" style="background: #a855f7"></span>
+              🏢 Edificación
+            </button>
+          </div>
+        </div>
+
+        <!-- Inspector de propiedades de la zona seleccionada -->
+        <div id="inspectorCard" class="inspector-card">
+          <span class="section-title" id="inspectorHeaderTitle"
+            >Inspector de Elemento</span
+          >
+          <div
+            id="inspectorEmptyState"
+            style="
+              font-size: 12px;
+              color: var(--text-muted);
+              font-style: italic;
+            "
+          >
+            Selecciona una herramienta para trazar una zona (clic y arrastra
+            sobre la imagen) o haz clic en un elemento existente.
+          </div>
+          <div id="inspectorForm" style="display: none" class="form-group">
+            <div class="form-group">
+              <label class="form-label" for="inputZoneName"
+                >Identificador / Nombre:</label
+              >
+              <input
+                type="text"
+                id="inputZoneName"
+                class="form-input"
+                placeholder="Ej: Andén Costado Norte"
+              />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="selectZoneType"
+                  >Tipo de Elemento:</label
+                >
+                <select id="selectZoneType" class="form-select">
+                  <option value="anden">Andén Peatonal</option>
+                  <option value="separador">Separador Vial</option>
+                  <option value="calzada">Calzada / Carril</option>
+                  <option value="edificio">Edificación / Local</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="inputZoneElevation"
+                  >Elevación (m):</label
+                >
+                <input
+                  type="number"
+                  id="inputZoneElevation"
+                  class="form-input"
+                  step="0.05"
+                  min="0"
+                  max="30"
+                  value="0.15"
+                />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="textareaZoneNotes"
+                >Notas Forenses:</label
+              >
+              <textarea
+                id="textareaZoneNotes"
+                class="form-textarea"
+                rows="2"
+                placeholder="Detalles de inspección (ej: cordón dañado, huella de neumático)..."
+              ></textarea>
+            </div>
+            <div class="inspector-actions">
+              <button type="button" id="btnDeleteZone" class="btn-danger-sm">
+                🗑️ Eliminar Zona
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Inspector de propiedades de Objeto / Vehículo seleccionado -->
+        <div
+          id="objectInspectorCard"
+          class="inspector-card"
+          style="display: none"
+        >
+          <span class="section-title">Inspector de Objeto</span>
+          <div
+            id="objectInspectorForm"
+            class="form-group"
+            style="display: flex; flex-direction: column; gap: 8px"
+          >
+            <div class="form-group">
+              <label class="form-label" for="inputObjName"
+                >Nombre / Placa:</label
+              >
+              <input
+                type="text"
+                id="inputObjName"
+                class="form-input"
+                placeholder="Ej: Sedán Azul - ABC123"
+              />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="selectObjCatalogType"
+                  >Tipo de Elemento:</label
+                >
+                <select id="selectObjCatalogType" class="form-select"></select>
+                <div
+                  id="displayObjType"
+                  class="meta-val"
+                  style="
+                    font-size: 11px;
+                    color: var(--text-muted);
+                    margin-top: 2px;
+                  "
+                >
+                  —
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="inputObjElevation"
+                  >Cota Base (m):</label
+                >
+                <input
+                  type="number"
+                  id="inputObjElevation"
+                  class="form-input"
+                  step="0.05"
+                  min="0"
+                  max="30"
+                  value="0.0"
+                />
+                <span
+                  id="objZoneBadge"
+                  style="font-size: 10px; color: var(--accent); margin-top: 2px"
+                  >Sobre Calzada (0.0 m)</span
+                >
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="inputObjRotation"
+                  >Rotación (°):</label
+                >
+                <input
+                  type="number"
+                  id="inputObjRotation"
+                  class="form-input"
+                  min="0"
+                  max="360"
+                  step="5"
+                  value="0"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="inputObjColor">Color:</label>
+                <input
+                  type="color"
+                  id="inputObjColor"
+                  class="form-input"
+                  style="height: 34px; padding: 2px 4px; cursor: pointer"
+                  value="#2563eb"
+                />
+              </div>
+            </div>
+
+            <!-- Rol Forense en el Accidente -->
+            <div
+              class="form-group"
+              style="
+                background: rgba(15, 23, 42, 0.4);
+                padding: 8px;
+                border-radius: var(--radius-sm);
+                border: 1px solid var(--border-color);
+              "
+            >
+              <label
+                class="toggle-row"
+                style="margin-bottom: 6px; font-weight: 600"
+              >
+                <span>⚠️ ¿Involucrado en Accidente?</span>
+                <input type="checkbox" id="checkObjInvolved" />
+              </label>
+
+              <div
+                id="objAccidentFields"
+                style="
+                  display: none;
+                  flex-direction: column;
+                  gap: 8px;
+                  margin-top: 6px;
+                "
+              >
+                <div class="form-group">
+                  <label class="form-label" for="selectObjRole"
+                    >Rol en el Siniestro:</label
+                  >
+                  <select id="selectObjRole" class="form-select">
+                    <option value="impactante">Vehículo 1 (Impactante)</option>
+                    <option value="impactado">Vehículo 2 (Impactado)</option>
+                    <option value="peaton_atropellado">
+                      Peatón Atropellado
+                    </option>
+                    <option value="objeto_chocado">
+                      Objeto Fijo Chocado (Poste/Árbol)
+                    </option>
+                    <option value="inerte">Elemento Ajeno / Estacionado</option>
+                  </select>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label" for="inputObjSpeed"
+                      >Velocidad (km/h):</label
+                    >
+                    <input
+                      type="number"
+                      id="inputObjSpeed"
+                      class="form-input"
+                      min="0"
+                      max="220"
+                      step="1"
+                      value="50"
+                    />
+                  </div>
+                  <div
+                    class="form-group"
+                    style="
+                      display: flex;
+                      flex-direction: column;
+                      justify-content: flex-end;
+                    "
+                  >
+                    <button
+                      type="button"
+                      id="btnTraceTrajectory"
+                      class="btn-primary-sm"
+                      style="height: 32px; font-size: 11px"
+                    >
+                      📍 Trazar Ruta
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  id="objTrajectoryStats"
+                  style="
+                    font-size: 11px;
+                    color: var(--text-muted);
+                    line-height: 1.4;
+                  "
+                >
+                  Sin trayectoria trazada.
+                </div>
+
+                <!-- Ángulo de Desviación Forense Editable tras Impacto -->
+                <div class="form-row" style="margin-top: 4px">
+                  <div class="form-group">
+                    <label
+                      class="form-label"
+                      for="inputObjDeviationAngle"
+                      title="Ángulo de desvío tras chocar (0 = automático por física)"
+                    >
+                      Desvío Post-Impacto (°):
+                    </label>
+                    <input
+                      type="number"
+                      id="inputObjDeviationAngle"
+                      class="form-input"
+                      min="-180"
+                      max="180"
+                      step="1"
+                      value="0"
+                      placeholder="0 (Físico)"
+                      title="Ángulo pericial de desviación tras el impacto (-180° a +180°)"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label
+                      class="form-label"
+                      for="inputObjVehicleRestDist"
+                      title="Distancia en metros desde el impacto hasta el reposo del vehículo/moto"
+                    >
+                      Reposo Moto/Veh (m):
+                    </label>
+                    <input
+                      type="number"
+                      id="inputObjVehicleRestDist"
+                      class="form-input"
+                      min="0.5"
+                      max="60"
+                      step="0.5"
+                      value="5.0"
+                      placeholder="5.0"
+                      title="Distancia de detención final post-impacto de la moto/vehículo"
+                    />
+                  </div>
+                </div>
+
+                <!-- Ángulo de Proyección del Conductor (Motocicleta) -->
+                <div
+                  class="form-row"
+                  id="fieldMotoRider"
+                  style="display: none; margin-top: 4px"
+                >
+                  <div class="form-group">
+                    <label
+                      class="form-label"
+                      for="inputObjRiderLaunchAngle"
+                      title="Ángulo vertical de eyección del conductor al chocar (independiente del desvío de la moto)"
+                    >
+                      Ángulo Proy. Conductor (°):
+                    </label>
+                    <input
+                      type="number"
+                      id="inputObjRiderLaunchAngle"
+                      class="form-input"
+                      min="0"
+                      max="60"
+                      step="1"
+                      value="15"
+                      placeholder="15°"
+                      title="Ángulo vertical de eyección del conductor al chocar (independiente del desvío de la moto)"
+                    />
+                  </div>
+                  <div class="form-group" style="flex: 1">
+                    <label
+                      class="form-label"
+                      for="inputObjRiderRestDist"
+                      title="Distancia en metros donde queda el conductor tras el impacto"
+                    >
+                      Reposo Conductor (m):
+                    </label>
+                    <input
+                      type="number"
+                      id="inputObjRiderRestDist"
+                      class="form-input"
+                      min="0.5"
+                      max="60"
+                      step="0.5"
+                      value="6.0"
+                      placeholder="6.0 m"
+                      title="Distancia final de detención del conductor tras el impacto (metros)"
+                    />
+                  </div>
+                </div>
+
+                <!-- Lista editable de puntos de trayectoria y velocidades -->
+                <div
+                  id="objTrajectoryPointsList"
+                  class="trajectory-points-list"
+                  style="display: none"
+                >
+                  <!-- Generado dinámicamente con select de tipo y velocidad en km/h -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Opciones específicas para Huellas de Frenado -->
+            <div
+              id="objSkidFields"
+              style="
+                display: none;
+                background: rgba(15, 23, 42, 0.4);
+                padding: 8px;
+                border-radius: var(--radius-sm);
+                border: 1px solid var(--border-color);
+                flex-direction: column;
+                gap: 8px;
+              "
+            >
+              <span class="form-label" style="font-weight: 600"
+                >Parámetros de Frenado:</span
+              >
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="inputSkidLength"
+                    >Longitud (m):</label
+                  >
+                  <input
+                    type="number"
+                    id="inputSkidLength"
+                    class="form-input"
+                    min="1"
+                    max="100"
+                    step="0.5"
+                    value="10"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="inputSkidTrack"
+                    >Trocha (m):</label
+                  >
+                  <input
+                    type="number"
+                    id="inputSkidTrack"
+                    class="form-input"
+                    min="0.5"
+                    max="3"
+                    step="0.1"
+                    value="1.5"
+                  />
+                </div>
+              </div>
+              <label
+                class="toggle-row"
+                style="margin-top: 4px; font-size: 11px"
+              >
+                <span>Aparecer solo al pasar vehículo</span>
+                <input type="checkbox" id="checkSkidTriggerOnPass" />
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="textareaObjNotes"
+                >Observaciones Forenses:</label
+              >
+              <textarea
+                id="textareaObjNotes"
+                class="form-textarea"
+                rows="2"
+                placeholder="Detalles de impacto, daños visibles, huellas..."
+              ></textarea>
+            </div>
+
+            <div class="inspector-actions">
+              <button type="button" id="btnDeleteObject" class="btn-danger-sm">
+                🗑️ Eliminar Objeto
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lista de zonas y objetos en la escena -->
+        <div class="zones-list-section">
+          <div
+            class="list-tabs-row"
+            style="display: flex; gap: 6px; margin-bottom: 8px"
+          >
+            <button
+              type="button"
+              class="list-tab-btn active"
+              id="tabListZones"
+              style="
+                flex: 1;
+                padding: 5px;
+                font-size: 11px;
+                font-weight: 600;
+                border-radius: var(--radius-sm);
+                background: var(--bg-card);
+                color: var(--text-main);
+                border: 1px solid var(--border-color);
+                cursor: pointer;
+              "
+            >
+              Zonas (<span id="countZonesBadge">0</span>)
+            </button>
+            <button
+              type="button"
+              class="list-tab-btn"
+              id="tabListObjects"
+              style="
+                flex: 1;
+                padding: 5px;
+                font-size: 11px;
+                font-weight: 600;
+                border-radius: var(--radius-sm);
+                background: transparent;
+                color: var(--text-muted);
+                border: 1px solid var(--border-color);
+                cursor: pointer;
+              "
+            >
+              Objetos (<span id="countObjectsBadge">0</span>)
+            </button>
+          </div>
+          <div
+            id="objectsListContainer"
+            class="zones-list"
+            style="display: none"
+          >
+            <div
+              style="font-size: 11px; color: var(--text-muted); padding: 4px 0"
+            >
+              No hay objetos colocados todavía.
+            </div>
+          </div>
+          <div class="zones-header-row">
+            <span class="section-title" style="margin: 0"
+              >Zonas en la Escena</span
+            >
+            <div class="history-toolbar">
+              <button
+                type="button"
+                id="btnUndo"
+                class="history-btn"
+                title="Deshacer (Ctrl + Z)"
+                disabled
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 7v6h6"></path>
+                  <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+                </svg>
+                Deshacer
+              </button>
+              <button
+                type="button"
+                id="btnRedo"
+                class="history-btn"
+                title="Rehacer (Ctrl + Y)"
+                disabled
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 7v6h-6"></path>
+                  <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"></path>
+                </svg>
+                Rehacer
+              </button>
+              <button
+                type="button"
+                id="btnClearAll"
+                class="history-btn danger"
+                title="Eliminar todos los polígonos (se puede deshacer)"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path
+                    d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+                  ></path>
+                  <path d="M10 11v6"></path>
+                  <path d="M14 11v6"></path>
+                </svg>
+                Limpiar todo
+              </button>
+            </div>
+          </div>
+          <div id="zonesListContainer" class="zones-list">
+            <div
+              style="font-size: 11px; color: var(--text-muted); padding: 4px 0"
+            >
+              No hay zonas delimitadas todavía.
+            </div>
+          </div>
+        </div>
+
+        <!-- Control de Simulación Forense (Panel Lateral 2D) -->
+        <div class="card" id="cardSimControls" style="margin-top: 12px; margin-bottom: 12px; background: rgba(15, 23, 42, 0.6); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 8px;
+            "
+          >
+            <span class="section-title" style="margin: 0; font-size: 12px; font-weight: 700; color: #fff;"
+              >🎬 Simulación Cinemática</span
+            >
+            <span
+              id="simCurrentTime"
+              style="
+                font-size: 11px;
+                font-family: monospace;
+                color: var(--accent);
+                font-weight: 700;
+              "
+              >0.000 s</span
+            >
+          </div>
+
+          <!-- Botones de transporte principales -->
+          <div style="display: flex; gap: 6px; margin-bottom: 8px">
+            <button
+              type="button"
+              id="btnSimPlay"
+              class="btn primary"
+              style="
+                flex: 2;
+                height: 32px;
+                font-size: 11px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+              "
+              title="Reproducir / Pausar (Espacio)"
+            >
+              <span id="simPlayIcon">▶️</span>
+              <span id="simPlayText">Reproducir</span>
+            </button>
+            <button
+              type="button"
+              id="btnSimReset"
+              class="btn"
+              style="flex: 1; height: 32px; font-size: 11px; padding: 0"
+              title="Reiniciar (t = 0.0s)"
+            >
+              ⏮️ Reset
+            </button>
+          </div>
+
+          <!-- Botones secundarios de transporte: reversa y frame a frame -->
+          <div style="display: flex; gap: 4px; margin-bottom: 8px">
+            <button
+              type="button"
+              id="btnSimStepBack"
+              class="btn"
+              style="flex: 1; height: 26px; font-size: 10px; padding: 2px"
+              title="Retroceder 1 frame (-0.05s / milésimas)"
+            >
+              ⏪ -Frame
+            </button>
+            <button
+              type="button"
+              id="btnSimReverse"
+              class="btn"
+              style="flex: 1; height: 26px; font-size: 10px; padding: 2px"
+              title="Reproducir en Reversa"
+            >
+              <span id="simRevIcon">◀️</span> Reversa
+            </button>
+            <button
+              type="button"
+              id="btnSimStepForward"
+              class="btn"
+              style="flex: 1; height: 26px; font-size: 10px; padding: 2px"
+              title="Avanzar 1 frame (+0.05s / milésimas)"
+            >
+              ⏩ +Frame
+            </button>
+          </div>
+
+          <!-- Línea de tiempo / Scrubber pericial -->
+          <div style="margin-bottom: 8px">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 10px;
+                color: var(--text-muted);
+                font-family: monospace;
+                margin-bottom: 3px;
+              "
+            >
+              <span>Tiempo de Escena</span>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <span>Total:</span>
+                <span id="simTotalTime" style="cursor: pointer; color: var(--accent); font-weight: 700; text-decoration: underline dotted;" title="Clic para editar la duración total o cambiar entre Manual y Auto">0.000 s</span>
+                <button type="button" id="btnEditSimDuration" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:11px; padding:0 2px;" title="Editar duración de la escena (Manual / Auto)">✏️</button>
+              </div>
+            </div>
+            <input
+              type="range"
+              id="simTimeSlider"
+              class="sim-slider"
+              min="0"
+              max="100"
+              step="0.01"
+              value="0"
+              style="
+                width: 100%;
+                accent-color: var(--accent);
+                cursor: pointer;
+                height: 5px;
+              "
+              title="Línea de tiempo de la reconstrucción (Scrubber milimétrico)"
+            />
+          </div>
+
+          <!-- Multiplicadores de Velocidad de Reproducción -->
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 8px;
+            "
+          >
+            <span style="font-size: 10px; color: var(--text-muted)"
+              >Velocidad:</span
+            >
+            <div class="sim-speed-group">
+              <button type="button" class="sim-speed-btn" data-speed="0.25">
+                0.25×
+              </button>
+              <button type="button" class="sim-speed-btn" data-speed="0.5">
+                0.5×
+              </button>
+              <button type="button" class="sim-speed-btn active" data-speed="1">
+                1.0×
+              </button>
+              <button type="button" class="sim-speed-btn" data-speed="2">
+                2.0×
+              </button>
+            </div>
+          </div>
+
+          <!-- Badge de telemetría en vivo -->
+          <div
+            id="simLiveTelemetry"
+            class="sim-telemetry-badge"
+            style="
+              display: none;
+              justify-content: center;
+              margin-bottom: 8px;
+            "
+          >
+            <span id="simTelemetryVehicle">🚗 Sedán</span>:
+            <strong id="simTelemetrySpeed">50 km/h</strong>
+          </div>
+
+          <div
+            style="
+              font-size: 10px;
+              color: var(--text-muted);
+              display: flex;
+              justify-content: space-between;
+            "
+          >
+            <span>Atajos: [Espacio] Play/Pausa</span>
+            <span>[← / →] Frame - / +</span>
+          </div>
+        </div>
+
+        <!-- Etapa 3: Reconstrucción 3D -->
+        <div class="convert3d-section">
+          <button
+            type="button"
+            id="btnConvert3D"
+            class="btn-convert-3d"
+            title="Genera el modelo 3D con todas las zonas delimitadas"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"
+              ></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+            Convertir a 3D
+          </button>
+          <div class="convert3d-hint">
+            Lleva todas las zonas, elevaciones y notas al modelo tridimensional.
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Notificación emergente Toast -->
+    <div class="toast-container">
+      <div id="toast" class="toast">
+        <span id="toastMessage">Notificación</span>
+      </div>
+    </div>
+
+    <!-- Módulos de Sinistra 3D (Lógica desacoplada y modular) -->
+    <script src="js/objects_catalog.js"></script>
+    <script src="js/kinematics_engine.js"></script>
+    <script src="js/default_scene_data.js"></script>
+    <script src="js/scene_storage.js"></script>
+    <script src="js/scene_tools.js"></script>
+    <script src="js/render_2d_props.js"></script>
+    <script src="js/render_2d_vehicle_models.js"></script>
+    <script src="js/render_2d_vehicles.js"></script>
+    <script src="js/scene_objects.js"></script>
+    <script src="js/scene_zones.js"></script>
+    <script src="js/scene_dimensions.js"></script>
+    <script src="js/scene_simulation.js"></script>
+    <script src="js/scene_shortcuts.js"></script>
+    <script src="js/scene_events.js"></script>
+    <script src="js/scene.js"></script>
+  </body>
+</html>
